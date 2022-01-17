@@ -1,0 +1,125 @@
+import numpy as np
+import glob
+import math
+files=glob.glob('data_scaled_*')
+for name in files:
+    f=open(name)
+    lines=f.readlines()
+    atoms = lines[2].split()[0]
+    #initial box lengths
+    m0=[float(lines[5].split()[1]), float(lines[6].split()[1]), float(lines[7].split()[1])]
+    #initial tilts
+    tilts=[float(lines[8].split()[0]),float(lines[8].split()[1]),float(lines[8].split()[2])]
+    
+    #deformation factor
+    d=[0.015,-0.015, -0.03, 0.03,-0.045, 0.045]
+    #direction in which to perform deformation
+    e=[[0,0,0], [1,0,0],[0,1,0],[0,0,1],[1,1,0],[1,0,1],[0,1,1],[1,1,1]]
+    letters=["000", "100","010","001","110","101","011","111"]
+    tilt =["000", "100","010","001","110","101","011","111"]
+    #tilt on which to perform deformation
+    t=[[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,1,0],[1,0,1],[0,1,1],[1,1,1]]
+    
+    for i in range(len(d)):
+        for j in range(len(e)):
+            for k in range(len(t)):
+                with open(name) as f:
+                    with open("../deformations/" + name+"_" + str(d[i])+"_plane_"+str(letters[j])+"_tilt_" + str(tilt[k]), "w") as fl:
+                        m=[]
+                        for r in range(len(e[j])):
+                            if e[j][r]==1:
+                                m.append(e[j][r]+d[i])
+                            else:
+                                m.append(e[j][r]+1)
+                        Md=np.multiply(m,m0)
+                        fl.write("Created on Sun Jul 04 14:52:32 2021\n\n" + atoms + " atoms\n2 atom types\n0.0  "+str(Md[0]) + " xlo xhi\n0.0  " + str(Md[1]) +" ylo yhi\n0.0  " +str(Md[2])+" zlo zhi")   
+                        
+                        m=[]
+                        for r in range(len(t[k])):
+                            if t[k][r]==1:
+                                m.append(d[i]+1)
+                            else:
+                                m.append(1)
+
+                        #make sure no extreme tilts nevermind, just use box tile large command to ignore extreme tilts
+                        deformedTilts = np.multiply(m,tilts)
+#                         for tiltI in range(3):
+#                             if deformedTilts[tiltI]>(float(Md[0])/2):
+#                                 deformedTilts[tiltI]-=float(Md[0])/2
+#                             if deformedTilts[tiltI]<(-1)*(float(Md[0])/2):
+#                                 deformedTilts[tiltI]+=float(Md[0])/2
+                       
+                        
+
+                        fl.write("\n" +  str(deformedTilts[0])  +" " + str(deformedTilts[1]) +" " +str(deformedTilts[2]) +" xy xz yz")
+
+
+                        fl.write("\n\nMasses\n\n\t 1\t15.9994 # O_2\n\t 2\t28.0855 # Si3")
+                        fl.write("\n\nAtoms\n\n\t")
+                        #get angles in radians 
+                        a=m0[0]
+                        b=math.sqrt(m0[1]**2+float(lines[8].split()[0])**2)
+                        c=math.sqrt(m0[2]**2+float(lines[8].split()[1])**2+float(lines[8].split()[2])**2)
+
+                        alpha = np.pi*90/180 
+                        beta = math.acos(float(lines[8].split()[1])/c)
+                        gamma = math.acos(float(lines[8].split()[0])/b)
+
+                         # convert from cartesian to fractional
+                        cosa = np.cos(alpha)
+                        sina = np.sin(alpha)
+                        cosb = np.cos(beta)
+                        sinb = np.sin(beta)
+                        cosg = np.cos(gamma)
+                        sing = np.sin(gamma)
+                        volume = 1.0 - cosa**2.0 - cosb**2.0 - cosg**2.0 + 2.0 * cosa * cosb * cosg
+                        volume = np.sqrt(volume)
+                        r = np.zeros((3, 3))
+                        r[0, 0] = 1.0 / a
+                        r[0, 1] = -cosg / (a * sing)
+                        r[0, 2] = (cosa * cosg - cosb) / (a * volume * sing)
+                        r[1, 1] = 1.0 / (b * sing)
+                        r[1, 2] = (cosb * cosg - cosa) / (b * volume * sing)
+                        r[2, 2] = sing / (c * volume)
+
+
+                        c2f=r
+
+                        #convert from fractional to cartesian
+                        a=Md[0]
+                        b=math.sqrt(Md[1]**2+float(deformedTilts[0])**2)
+                        c=math.sqrt(Md[2]**2+float(deformedTilts[1])**2+float(deformedTilts[2])**2)
+
+                        beta = math.acos(float(deformedTilts[1])/c)
+                        gamma = math.acos(deformedTilts[0]/b)
+
+                        cosa = np.cos(alpha)
+                        sina = np.sin(alpha)
+                        cosb = np.cos(beta)
+                        sinb = np.sin(beta)
+                        cosg = np.cos(gamma)
+                        sing = np.sin(gamma)
+                        volume = 1.0 - cosa**2.0 - cosb**2.0 - cosg**2.0 + 2.0 * cosa * cosb * cosg
+                        volume = np.sqrt(volume)
+                        r = np.zeros((3, 3))
+                        r[0, 0] = a
+                        r[0, 1] = b * cosg
+                        r[0, 2] = c * cosb
+                        r[1, 1] = b * sing
+                        r[1, 2] = c * (cosa - cosb * cosg) / sing
+                        r[2, 2] = c * volume / sing
+
+                        f2c = r
+
+                        #writing coordinates
+                        for a in range(17,len(lines)):
+                            cartesian =[]
+                            for b in range(4,7):
+                                cartesian.append(float(lines[a].split()[b]))
+                            cartesian = np.transpose(cartesian)
+                            convertedToFractional = np.matmul(c2f,cartesian)
+                            backToCartesian = np.matmul(f2c,convertedToFractional)
+                            fl.write(lines[a].split()[0] + "\t 444 \t"  + lines[a].split()[2]+ " \t " + lines[a].split()[3]+ "\t " + str(backToCartesian[0])+"  "+ str(backToCartesian[1])+"  "+ str(backToCartesian[2])+"\n\t")
+
+    
+   
