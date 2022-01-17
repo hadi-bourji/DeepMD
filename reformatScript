@@ -1,0 +1,188 @@
+import numpy as np
+import os
+
+def fileConversion(directory,parent_directory):
+    #paramters for this file type
+    start=9
+    box_bounds=5
+    
+    
+    # get number of atoms from output file and number of frames from total number of lines and number of atoms
+    f=open('coord_force.raw')
+    lines=f.readlines()
+    atoms=int(lines[3])
+    frames=int(len(lines)/(int(atoms)+start))
+    nextBlock=atoms+start
+    print("atoms: " + str(atoms))
+    print("frames: " + str(frames) )
+    
+    #create system directory and four sub directories to split the data files into
+    path = os.path.join(parent_directory, directory)
+    os.mkdir(path)
+    for i in range(0,4):
+        path = os.path.join(parent_directory+directory+"/", "system.00"+str(i))
+        os.mkdir(path)
+        path = os.path.join(parent_directory+directory+"/", "system.00"+str(i)+"/set.00" + str(i))
+        os.mkdir(path)
+        
+    #convert atom type to type.raw file
+    x=[]
+    f=open('coord_force.raw')
+    lines=f.readlines()
+    for i in range(start,start+atoms):
+        x.append([float(m) for m in lines[i].split()])
+    x=np.resize(x,(atoms,8))
+    x=x[x[:, 0].argsort()]
+    sortedType= x[:,1]
+    sortedType=[str(int(m-1)) for m in sortedType]
+    #one frame training
+#     onetype=sortedType
+#     with open("onetype.raw","w") as txt_file:
+#         for line in onetype:
+#             txt_file.write(line + "\n")
+    ######################################
+    for i in range(0,4):
+        with open(parent_directory+directory+"/system.00"+ str(i) +"/type.raw", "w") as txt_file:
+            for line in sortedType:
+                txt_file.write(line + "\n")
+    
+    
+    
+    #convert box coordinates from raw to usable npy file 
+    x=[]
+    f=open('coord_force.raw')
+    lines=f.readlines()
+    for i in range(len(lines)):
+        if i==box_bounds:
+            x.append([float(m) for m in lines[i].split()])
+        if i==box_bounds+1:
+            x.append([float(m) for m in lines[i].split()])
+        if i==box_bounds+2:
+            x.append([float(m) for m in lines[i].split()])
+            box_bounds+=nextBlock
+    x=np.reshape(x,(frames,9))
+
+     # (601,9) x lower limit is 0 y is 3 z is 6
+    ll_x=[]
+    ll_y=[]
+    ll_z=[]
+
+    for i in range(len(x)):
+        ll_x.append(x[i][0])
+        ll_y.append(x[i][3])
+        ll_z.append(x[i][6])
+       
+    #subtract upper and lower bound by lower bound
+    for i in range(len(x)):
+        x[i][1]=x[i][1]-x[i][0]
+        x[i][4]=x[i][4]-x[i][3]
+        x[i][7]=x[i][7]-x[i][6]
+        x[i][6]=x[i][6]-x[i][6]
+        x[i][3]=x[i][3]-x[i][3]
+        x[i][0]=x[i][0]-x[i][0]
+    
+    
+    #one frame training
+    #onebox=x[0]
+    #np.save("../oneFrame/zeolite/system0/fil/box.npy",onebox)
+    ######################################
+    
+   #reformat the box to the correct positions of the boundaries
+   #solution for floating point exception: upper boundary of the box is not the second column, it is the first column for x, second for y, third for z
+    
+    for i in range(len(x)):
+        x[i][0]=x[i][1]
+        x[i][1]=0.0
+        x[i][2]=0.0
+        x[i][3]=0.0
+        #4th is actually good
+        x[i][5]=0.0
+        x[i][6]=0.0
+        x[i][8]=x[i][7]
+        x[i][7]=0.0
+   
+    #split into systems 
+    for i in range(0,4):
+        y=[]
+        x=np.array(x)
+        y=x[i*int(len(x)/4):(i+1)*int(len(x)/4),:]
+        np.save(parent_directory+directory+"/system.00"+str(i)+"/set.00" + str(i) +"/box.npy",y)
+
+                
+            
+    #convert forces and coordinates to npy
+    x=[]
+    coordinates=[]
+    forces=[]
+    f=open('coord_force.raw')
+    lines=f.readlines()
+
+    for x in range(frames):
+        x=[]
+        for i in range(start,start+atoms):
+            x.append([float(m) for m in lines[i].split()])
+        x=np.resize(x,(atoms,8))
+        x=x[x[:, 0].argsort()]
+        coordinates.append(x[:,[2,3,4]])
+        forces.append(x[:,[5,6,7]])
+        start+=nextBlock
+    coordinates = np.reshape(coordinates, (frames,3*atoms))
+    #subtract each coordinate by its respective lower bound in its respective timestep so no atom coordinate is out of bounds
+    out=0
+    for i in range(len(coordinates)):
+        for j in range(len(coordinates[0])):
+            if j%3==0:
+                coordinates[i][j]=coordinates[i][j]-ll_x[i] #0 3 6
+                
+            if j%3==1:
+                coordinates[i][j]=coordinates[i][j]-ll_y[i] #1 4 7
+                                    
+            if j%3==2:
+                coordinates[i][j]=coordinates[i][j]-ll_z[i] #2 5 8
+
+            
+    forces = np.reshape(forces, (frames,3*atoms))
+    coordinates=np.array(coordinates)
+    forces=np.array(forces)
+   
+    
+    #conversion from real (default units for reax) to metal units for deepmd
+    forces=forces*0.0434
+    
+    #one frame training
+#     onecoord=coordinates[0]
+#     np.save("../oneFrame/zeolite/system0/fil/coord.npy",onecoord)
+#     oneforce=forces[0]
+#     np.save("../oneFrame/zeolite/system0/fil/force.npy",oneforce)
+    ######################################
+    
+    for i in range(0,4):
+        x=[]
+        y=[]      
+        x=coordinates[i*int(len(coordinates)/4):(i+1)*int(len(coordinates)/4),:]
+        y=forces[i*int(len(forces)/4):(i+1)*int(len(forces)/4),:]
+        np.save(parent_directory+directory+"/system.00"+str(i)+"/set.00" + str(i) +"/coord.npy",x)
+        np.save(parent_directory+directory+"/system.00"+str(i)+"/set.00" + str(i) +"/force.npy",y)
+        
+    
+
+    #convert energy.raw output file into usable npy file
+    a=[]
+    with open("energy.raw") as f:
+        for line in f:
+            a.append(float(line))
+    a=np.array(a)
+    #conversion from real (default units for reax) to metal units for deepmd
+    a=a*0.0434
+    #one frame training
+    #oneenergy=a[0]
+    #np.save("../oneFrame/zeolite/system0/fil/energy.npy",oneenergy)
+    ######################################
+    
+    for i in range(0,4):
+        y=[]
+        y=a[i*int(len(a)/4):(i+1)*int(len(a)/4)]
+        np.save(parent_directory+directory+"/system.00"+str(i)+ "/set.00" + str(i) +"/energy.npy",y)
+
+    
+fileConversion(directory="zeolite", parent_directory="../training/")
