@@ -1,0 +1,20 @@
+#create data file scaled so low box limit is 0
+import numpy as np
+import glob
+files=glob.glob('data_*')
+print(files)
+for name in files:
+    f=open(name)
+    lines=f.readlines()
+    hi=[float(lines[5].split()[1]), float(lines[6].split()[1]), float(lines[7].split()[1])]
+    lo=[float(lines[5].split()[0]), float(lines[6].split()[0]), float(lines[7].split()[0])]
+    tilts=[float(lines[8].split()[0]),float(lines[8].split()[1]),float(lines[8].split()[2])]
+    hinew = [hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2]]
+    with open(name) as f:
+        with open(name[0:5]+"scaled_"+name[7:10] , "w") as fl:
+            fl.write(lines[0]+"\n"+lines[2]+""+lines[3]+"\n0 "+str(hinew[0])+" xlo xhi\n0 "+str(hinew[1])+" ylo yhi\n0 ")
+            fl.write(str(hinew[2])+" zlo zhi\n"+lines[8]+"\nMasses\n\n"+lines[12]+""+lines[13]+"\nAtoms\n\n")
+            for a in range(17,len(lines)):
+                fl.write(lines[a].split()[0]+" " + lines[a].split()[1]+" "+lines[a].split()[2]+" "+lines[a].split()[3]+" ")
+                fl.write(str(float(lines[a].split()[4])-lo[0])+" "+str(float(lines[a].split()[5])-lo[1])+" ")
+                fl.write(str(float(lines[a].split()[6])-lo[2])+"\n")
