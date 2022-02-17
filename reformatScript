@@ -1,14 +1,14 @@
 import numpy as np
 import os
 
-def fileConversion(directory,parent_directory):
+def fileConversion(directory,parent_directory,split):
     #paramters for this file type
     start=9
     box_bounds=5
     
     
     # get number of atoms from output file and number of frames from total number of lines and number of atoms
-    f=open('coord_force.raw')
+    f=open('coord_force_nvtBC.raw')
     lines=f.readlines()
     atoms=int(lines[3])
     frames=int(len(lines)/(int(atoms)+start))
@@ -19,7 +19,7 @@ def fileConversion(directory,parent_directory):
     #create system directory and four sub directories to split the data files into
     path = os.path.join(parent_directory, directory)
     os.mkdir(path)
-    for i in range(0,4):
+    for i in range(0,split):
         path = os.path.join(parent_directory+directory+"/", "system.00"+str(i))
         os.mkdir(path)
         path = os.path.join(parent_directory+directory+"/", "system.00"+str(i)+"/set.00" + str(i))
@@ -27,7 +27,7 @@ def fileConversion(directory,parent_directory):
         
     #convert atom type to type.raw file
     x=[]
-    f=open('coord_force.raw')
+    f=open('coord_force_nvtBC.raw')
     lines=f.readlines()
     for i in range(start,start+atoms):
         x.append([float(m) for m in lines[i].split()])
@@ -41,7 +41,7 @@ def fileConversion(directory,parent_directory):
 #         for line in onetype:
 #             txt_file.write(line + "\n")
     ######################################
-    for i in range(0,4):
+    for i in range(0,split):
         with open(parent_directory+directory+"/system.00"+ str(i) +"/type.raw", "w") as txt_file:
             for line in sortedType:
                 txt_file.write(line + "\n")
@@ -50,7 +50,7 @@ def fileConversion(directory,parent_directory):
     
     #convert box coordinates from raw to usable npy file 
     x=[]
-    f=open('coord_force.raw')
+    f=open('coord_force_nvtBC.raw')
     lines=f.readlines()
     for i in range(len(lines)):
         if i==box_bounds:
@@ -102,10 +102,10 @@ def fileConversion(directory,parent_directory):
         x[i][7]=0.0
    
     #split into systems 
-    for i in range(0,4):
+    for i in range(0,split):
         y=[]
         x=np.array(x)
-        y=x[i*int(len(x)/4):(i+1)*int(len(x)/4),:]
+        y=x[i*int(len(x)/split):(i+1)*int(len(x)/split),:]
         np.save(parent_directory+directory+"/system.00"+str(i)+"/set.00" + str(i) +"/box.npy",y)
 
                 
@@ -114,7 +114,7 @@ def fileConversion(directory,parent_directory):
     x=[]
     coordinates=[]
     forces=[]
-    f=open('coord_force.raw')
+    f=open('coord_force_nvtBC.raw')
     lines=f.readlines()
 
     for x in range(frames):
@@ -156,11 +156,11 @@ def fileConversion(directory,parent_directory):
 #     np.save("../oneFrame/zeolite/system0/fil/force.npy",oneforce)
     ######################################
     
-    for i in range(0,4):
+    for i in range(0,split):
         x=[]
         y=[]      
-        x=coordinates[i*int(len(coordinates)/4):(i+1)*int(len(coordinates)/4),:]
-        y=forces[i*int(len(forces)/4):(i+1)*int(len(forces)/4),:]
+        x=coordinates[i*int(len(coordinates)/split):(i+1)*int(len(coordinates)/split),:]
+        y=forces[i*int(len(forces)/split):(i+1)*int(len(forces)/split),:]
         np.save(parent_directory+directory+"/system.00"+str(i)+"/set.00" + str(i) +"/coord.npy",x)
         np.save(parent_directory+directory+"/system.00"+str(i)+"/set.00" + str(i) +"/force.npy",y)
         
@@ -168,9 +168,10 @@ def fileConversion(directory,parent_directory):
 
     #convert energy.raw output file into usable npy file
     a=[]
-    with open("energy.raw") as f:
+    with open("energy_nvtBC.raw") as f:
         for line in f:
-            a.append(float(line))
+            if "#" not in line:
+                a.append(float(line))
     a=np.array(a)
     #conversion from real (default units for reax) to metal units for deepmd
     a=a*0.0434
@@ -179,10 +180,10 @@ def fileConversion(directory,parent_directory):
     #np.save("../oneFrame/zeolite/system0/fil/energy.npy",oneenergy)
     ######################################
     
-    for i in range(0,4):
+    for i in range(0,split):
         y=[]
-        y=a[i*int(len(a)/4):(i+1)*int(len(a)/4)]
+        y=a[i*int(len(a)/split):(i+1)*int(len(a)/split)]
         np.save(parent_directory+directory+"/system.00"+str(i)+ "/set.00" + str(i) +"/energy.npy",y)
 
     
-fileConversion(directory="zeolite", parent_directory="../training/")
+fileConversion(directory="reformat", parent_directory="", split=5)
